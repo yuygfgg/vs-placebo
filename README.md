@@ -11,10 +11,10 @@ placebo.Deband(
     clip: vs.VideoNode,
     planes: int = 1,
     iterations: int = 1,
-    threshold: float = 4.0,
+    threshold: float = 3.0,
     radius: float = 16.0,
-    grain: float = 6.0,
-    dither: bool = True,
+    grain: float = 4.0,
+    dither: bool | None = None,
     dither_algo: int = 0,
     log_level: int = 2,
 )
@@ -35,8 +35,9 @@ Input needs to be 8 or 16 bit Integer or 32 bit Float.
 - `grain`: Add some extra noise to the image. This significantly helps cover up
   remaining quantization artifacts. Higher numbers add more noise.
 - `dither`: Whether the debanded frame should be dithered or rounded from float
-  to the output bitdepth. Only works for 8 bit.
-- `dither_algo`: The dithering method to use. Defaults to `blue`.
+  to the output bitdepth. Only works for 8 bit. Defaults to enabled for 8-bit
+  input and disabled otherwise.
+- `dither_algo`: The dithering method to use. Defaults to `blue noise` (`0`).
 
 ### Tonemap
 
@@ -44,7 +45,7 @@ Input needs to be 8 or 16 bit Integer or 32 bit Float.
 placebo.Tonemap(
     clip: vs.VideoNode,
     src_csp: int,
-    dst_csp: int,
+    dst_csp: int = 0,
     dst_prim: int | None = None,
     src_max: float | None = None,
     src_min: float | None = None,
@@ -56,8 +57,8 @@ placebo.Tonemap(
     scene_threshold_high: float = 3.0,
     percentile: float = 100.0,
     gamut_mapping: int = 1,
-    tone_mapping_function: int = 1,
-    tone_mapping_function_s: str = "spline",
+    tone_mapping_function: int = 5,
+    tone_mapping_function_s: str | None = None,
     tone_mapping_param: float | None = None,
     metadata: int = 0,
     use_dovi: bool | None = None,
@@ -73,9 +74,9 @@ lot more).
 Expects RGB48 or YUVxxxP16 input.  
 Outputs RGB48 or YUV444P16, depending on input color family.
 
-- `src_csp, dst_csp`: Source and destination colorspaces respectively. For
-  example, to map from [BT.2020, PQ] (HDR) to traditional [BT.709, BT.1886] (SDR),
-  pass `src_csp=1, dst_csp=0`.
+- `src_csp, dst_csp`: Source and destination colorspaces respectively.
+  `dst_csp` defaults to `0` (`SDR`). For example, to map from [BT.2020, PQ]
+  (HDR) to traditional [BT.709, BT.1886] (SDR), pass `src_csp=1, dst_csp=0`.
   | Value | Description |
   | ----- | ----------- |
   | 0 | SDR |
@@ -147,15 +148,15 @@ Outputs RGB48 or YUV444P16, depending on input color family.
 - `tone_mapping_function`, `tone_mapping_function_s`: Tone mapping function to
   use for adapting between difference luminance ranges, including black point
   adaptation. May be specified as either the integer value or the function name;
-  if both are passed, the function name is used. Defaults to 1 (`spline`).
+  if both are passed, the function name is used. Defaults to 5 (`spline`).
   | `tone_mapping_function` | `tone_mapping_function_s` | Description |
   | --- | --- | --- |
   | 0 | clip | Performs no tone-mapping, just clips out-of-range colors. Retains perfect color accuracy for in-range colors but completely destroys out-of-range information. Does not perform any black point adaptation. |
-  | 1 | spline | Simple spline consisting of two polynomials, joined by a single pivot point, which is tuned based on the source scene average brightness (taking into account dynamic metadata if available). This function can be used for both forward and inverse tone mapping. |
-  | 2 | st2094-40 | EETF from SMPTE ST 2094-40 Annex B, which uses the provided OOTF based on Bezier curves to perform tone-mapping. The OOTF used is adjusted based on the ratio between the targeted and actual display peak luminances. In the absence of HDR10+ metadata, falls back to a simple constant bezier curve. |
-  | 3 | st2094-10 | EETF from SMPTE ST 2094-10 Annex B.2, which takes into account the input signal average luminance in addition to the maximum/minimum. |
-  | 4 | bt2390 | EETF from the ITU-R Report BT.2390, a hermite spline roll-off with linear segment. |
-  | 5 | bt2446a | EETF from ITU-R Report BT.2446, method A. Can be used for both forward and inverse tone mapping. |
+  | 1 | st2094-40 | EETF from SMPTE ST 2094-40 Annex B, which uses the provided OOTF based on Bezier curves to perform tone-mapping. The OOTF used is adjusted based on the ratio between the targeted and actual display peak luminances. In the absence of HDR10+ metadata, falls back to a simple constant bezier curve. |
+  | 2 | st2094-10 | EETF from SMPTE ST 2094-10 Annex B.2, which takes into account the input signal average luminance in addition to the maximum/minimum. |
+  | 3 | bt2390 | EETF from the ITU-R Report BT.2390, a hermite spline roll-off with linear segment. |
+  | 4 | bt2446a | EETF from ITU-R Report BT.2446, method A. Can be used for both forward and inverse tone mapping. |
+  | 5 | spline | Simple spline consisting of two polynomials, joined by a single pivot point, which is tuned based on the source scene average brightness (taking into account dynamic metadata if available). This function can be used for both forward and inverse tone mapping. |
   | 6 | reinhard | Very simple non-linear curve. Named after Erik Reinhard. |
   | 7 | mobius | Generalization of the `reinhard` tone mapping algorithm to support an additional linear slope near black. The name is derived from its function shape `(ax+b)/(cx+d)`, which is known as a Möbius transformation. This function is considered legacy/low-quality, and should not be used. |
   | 8 | hable | Piece-wise, filmic tone-mapping algorithm developed by John Hable for use in Uncharted 2, inspired by a similar tone-mapping algorithm used by Kodak. Popularized by its use in video games with HDR rendering. Preserves both dark and bright details very well, but comes with the drawback of changing the average brightness quite significantly. This is sort of similar to `reinhard` with `reinhard_contrast=0.24`. This function is considered legacy/low-quality, and should not be used. |
@@ -221,19 +222,19 @@ placebo.Resample(
     width: int,
     height: int,
     filter: str = "ewa_lanczos",
-    radius: float = 0.0,
+    radius: float | None = None,
     clamp: float = 0.0,
     taper: float = 0.0,
     blur: float = 0.0,
-    param1: float = 0.0,
-    param2: float = 0.0,
-    src_width: float = None,
-    src_height: float = None,
+    param1: float | None = None,
+    param2: float | None = None,
+    src_width: float | None = None,
+    src_height: float | None = None,
     sx: float = 0.0,
     sy: float = 0.0,
     antiring: float = 0.0,
-    sigmoidize: bool = True,
-    linearize: bool = True,
+    sigmoidize: bool | None = None,
+    linearize: bool | None = None,
     sigmoid_center: float = 0.75,
     sigmoid_slope: float = 6.5,
     trc: int = 1,
@@ -245,8 +246,8 @@ placebo.Resample(
 Input needs to be 8 or 16 bit Integer or 32 bit Float.
 
 - `filter`: See [the header](https://github.com/haasn/libplacebo/blob/v7.349.0/src/include/libplacebo/filters.h#L268-L299) for possible values (remove the "pl_filter_" before the filter name, e.g. `filter="lanczos"`).
-- `radius`: Override the filter kernel radius. Has no effect if the filter
-  kernel is not resizeable.
+- `radius`: Override the filter kernel radius. If omitted, the selected filter's
+  default radius is used. Has no effect if the filter kernel is not resizeable.
 - `clamp`: Represents an extra weighting/clamping coefficient for negative
   weights. A value of `0.0` represents no clamping. A value of `1.0` represents
   full clamping, i.e. all negative lobes will be removed.
@@ -254,7 +255,8 @@ Input needs to be 8 or 16 bit Integer or 32 bit Float.
   function's center.
 - `blur`: Additional blur coefficient. This effectively stretches the kernel,
   without changing the effective radius of the filter radius.
-- `param1`, `param2`: Parameters for the filter function.
+- `param1`, `param2`: Parameters for the filter function. If omitted, the
+  selected filter's built-in parameter values are used.
 - `src_width`, `src_height`: Dimensions of the source region. Defaults to the
   dimensions of `clip`.
 - `sx`, `sy`: Top left corner of the source region. Can be used for subpixel shifts.
@@ -262,7 +264,7 @@ Input needs to be 8 or 16 bit Integer or 32 bit Float.
 - `sigmoidize, linearize`: Whether to linearize/sigmoidize before scaling.
   Enabled by default for RGB, disabled for YCbCr because NCL YCbCr can’t be correctly linearized without conversion to RGB.
   Defaults to disabled for GRAY since it may be a YCbCr plane, but can be manually enabled.
-  When sigmodizing, `linearize` should be True as well. (Currently mangles HDR video, so disable for that.)
+  When sigmoidizing, `linearize` should be True as well. (Currently mangles HDR video, so disable for that.)
 - `sigmoid_center`: The center (bias) of the sigmoid curve.
 - `sigmoid_slope`: The slope (steepness) of the sigmoid curve.
 - `trc`: The transfer curve to use for linearizing.
@@ -293,25 +295,25 @@ Input needs to be 8 or 16 bit Integer or 32 bit Float.
 ```python
 placebo.Shader(
     clip: vs.VideoNode,
-    shader: str,
-    width: int,
-    height: int,
+    shader: str | None = None,
+    width: int | None = None,
+    height: int | None = None,
     chroma_loc: int = 1,
     matrix: int = 2,
     trc: int = 1,
     filter: str = "ewa_lanczos",
-    radius: float,
-    clamp: float,
-    taper: float,
-    blur: float,
-    param1: float,
-    param2: float,
+    radius: float | None = None,
+    clamp: float = 0.0,
+    taper: float = 0.0,
+    blur: float = 0.0,
+    param1: float | None = None,
+    param2: float | None = None,
     antiring: float = 0.0,
     sigmoidize: bool = True,
     linearize: bool = True,
     sigmoid_center: float = 0.75,
     sigmoid_slope: float = 6.5,
-    shader_s: str,
+    shader_s: str | None = None,
     log_level: int = 2,
 )
 ```
@@ -330,7 +332,9 @@ it will only be executed when `linearize = True`.
 
 - `shader`: Path to shader file.
 - `shader_s`: Alternatively, string containing the shader. (`shader` takes precedence.)
-- `width, height`: Output dimensions. Need to be specified for scaling shaders to be run.
+  At least one of `shader` or `shader_s` must be provided.
+- `width, height`: Output dimensions. Defaults to the input dimensions if
+  omitted. Need to be specified for scaling shaders to be run.
   Any planes the shader doesn’t scale appropriately will be scaled to output res by libplacebo
   using the supplied filter options, which are identical to `Resample`’s.
   (To be exact, chroma will be scaled to what the luma prescaler outputs
